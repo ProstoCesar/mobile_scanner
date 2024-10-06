@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.Rect
 import android.hardware.display.DisplayManager
+import android.media.Image
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -37,6 +38,12 @@ import dev.steenbakker.mobile_scanner.utils.YuvToRgbConverter
 import io.flutter.view.TextureRegistry
 import java.io.ByteArrayOutputStream
 import kotlin.math.roundToInt
+import com.google.mlkit.vision.common.internal.ImageConvertUtils
+import org.opencv.core.Mat
+import org.opencv.core.CvType
+import org.opencv.core.Core
+import org.opencv.android.Utils
+import org.opencv.android.OpenCVLoader
 
 class MobileScanner(
     private val activity: Activity,
@@ -79,7 +86,6 @@ class MobileScanner(
     val captureOutput = ImageAnalysis.Analyzer { imageProxy -> // YUV_420_888 format
         val mediaImage = imageProxy.image ?: return@Analyzer
         val inputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-        recognizeImage(inputImage)
 
         if (detectionSpeed == DetectionSpeed.NORMAL && scannerTimeout) {
             imageProxy.close()
@@ -88,20 +94,23 @@ class MobileScanner(
             scannerTimeout = true
         }
 
-        recognizeImage(inputImage)
+        recognizeImage(inputImage, imageProxy, mediaImage)
+
 
         // Invert
         if (invertImage) {
-            recognizeImage(invertInputImage(inputImage))
+            try {
+                recognizeImage(invertInputImage(inputImage), imageProxy, mediaImage)
+            } catch (_: Exception) {}
         }
     }
 
-    private fun recognizeImage(inputImage: InputImage) {
+    private fun recognizeImage(inputImage: InputImage, imageProxy: ImageProxy, mediaImage: Image) {
         scanner?.let {
             it.process(inputImage).addOnSuccessListener { barcodes ->
                 if (detectionSpeed == DetectionSpeed.NO_DUPLICATES) {
                     val newScannedBarcodes = barcodes.mapNotNull {
-                        barcode -> barcode.rawValue
+                            barcode -> barcode.rawValue
                     }.sorted()
 
                     if (newScannedBarcodes == lastScanned) {
@@ -261,7 +270,7 @@ class MobileScanner(
     ) {
 
         OpenCVLoader.initDebug()
-          
+
         this.detectionSpeed = detectionSpeed
         this.detectionTimeout = detectionTimeout
         this.returnImage = returnImage
@@ -519,9 +528,9 @@ class MobileScanner(
     /**
      * Invert the input image.
      */
-    fun invertInputImage(image: InputImage): InputImage {
+    private fun invertInputImage(image: InputImage): InputImage {
         val bitmap = ImageConvertUtils.getInstance().getUpRightBitmap(image);
-        val tmp = Mat(bitmap.getWidth(), bitmap.getHeight(), CvType.CV_8UC1);
+        val tmp = Mat(bitmap.width, bitmap.height, CvType.CV_8UC1);
         Utils.bitmapToMat(bitmap, tmp);
         Core.bitwise_not(tmp, tmp);
         Utils.matToBitmap(tmp, bitmap);

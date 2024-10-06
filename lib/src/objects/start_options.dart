@@ -15,6 +15,7 @@ class StartOptions {
     required this.returnImage,
     required this.torchEnabled,
     required this.useNewCameraSelector,
+    required this.invertImage,
   });
 
   /// The direction for the camera.
@@ -38,6 +39,9 @@ class StartOptions {
   /// Whether the torch should be turned on when the scanner starts.
   final bool torchEnabled;
 
+  /// Whether the image should be inverted.
+  final bool invertImage;
+
   /// Whether the new resolution selector should be used.
   ///
   /// This option is only supported on Android. Other platforms will ignore this option.
@@ -58,6 +62,7 @@ class StartOptions {
       'timeout': detectionTimeoutMs,
       'torch': torchEnabled,
       'useNewCameraSelector': useNewCameraSelector,
+      'invertImage': invertImage,
     };
   }
 }

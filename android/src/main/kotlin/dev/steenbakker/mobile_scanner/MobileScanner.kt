@@ -58,6 +58,7 @@ class MobileScanner(
 
     /// Configurable variables
     var scanWindow: List<Float>? = null
+    var invertImage: Boolean = false
     private var detectionSpeed: DetectionSpeed = DetectionSpeed.NO_DUPLICATES
     private var detectionTimeout: Long = 250
     private var returnImage = false
@@ -78,6 +79,7 @@ class MobileScanner(
     val captureOutput = ImageAnalysis.Analyzer { imageProxy -> // YUV_420_888 format
         val mediaImage = imageProxy.image ?: return@Analyzer
         val inputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+        recognizeImage(inputImage)
 
         if (detectionSpeed == DetectionSpeed.NORMAL && scannerTimeout) {
             imageProxy.close()
@@ -86,6 +88,15 @@ class MobileScanner(
             scannerTimeout = true
         }
 
+        recognizeImage(inputImage)
+
+        // Invert
+        if (invertImage) {
+            recognizeImage(invertInputImage(inputImage))
+        }
+    }
+
+    private fun recognizeImage(inputImage: InputImage) {
         scanner?.let {
             it.process(inputImage).addOnSuccessListener { barcodes ->
                 if (detectionSpeed == DetectionSpeed.NO_DUPLICATES) {
@@ -236,6 +247,7 @@ class MobileScanner(
     fun start(
         barcodeScannerOptions: BarcodeScannerOptions?,
         returnImage: Boolean,
+        invertImage: Boolean,
         cameraPosition: CameraSelector,
         torch: Boolean,
         detectionSpeed: DetectionSpeed,
@@ -247,9 +259,13 @@ class MobileScanner(
         cameraResolution: Size?,
         newCameraResolutionSelector: Boolean
     ) {
+
+        OpenCVLoader.initDebug()
+          
         this.detectionSpeed = detectionSpeed
         this.detectionTimeout = detectionTimeout
         this.returnImage = returnImage
+        this.invertImage = invertImage
 
         if (camera?.cameraInfo != null && preview != null && textureEntry != null) {
             mobileScannerErrorCallback(AlreadyStarted())
@@ -498,6 +514,19 @@ class MobileScanner(
         if (scale > 1.0 || scale < 0) throw ZoomNotInRange()
         if (camera == null) throw ZoomWhenStopped()
         camera?.cameraControl?.setLinearZoom(scale.toFloat())
+    }
+
+    /**
+     * Invert the input image.
+     */
+    fun invertInputImage(image: InputImage): InputImage {
+        val bitmap = ImageConvertUtils.getInstance().getUpRightBitmap(image);
+        val tmp = Mat(bitmap.getWidth(), bitmap.getHeight(), CvType.CV_8UC1);
+        Utils.bitmapToMat(bitmap, tmp);
+        Core.bitwise_not(tmp, tmp);
+        Utils.matToBitmap(tmp, bitmap);
+        val newImage = InputImage.fromBitmap(bitmap, 0);
+        return newImage
     }
 
     /**

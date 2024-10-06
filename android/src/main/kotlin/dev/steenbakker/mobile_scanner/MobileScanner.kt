@@ -32,18 +32,18 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.common.internal.ImageConvertUtils
 import dev.steenbakker.mobile_scanner.objects.DetectionSpeed
 import dev.steenbakker.mobile_scanner.objects.MobileScannerStartParameters
 import dev.steenbakker.mobile_scanner.utils.YuvToRgbConverter
 import io.flutter.view.TextureRegistry
-import org.opencv.android.OpenCVLoader
-import org.opencv.android.Utils
-import org.opencv.core.Core
-import org.opencv.core.CvType
-import org.opencv.core.Mat
 import java.io.ByteArrayOutputStream
 import kotlin.math.roundToInt
+import com.google.mlkit.vision.common.internal.ImageConvertUtils
+import org.opencv.core.Mat
+import org.opencv.core.CvType
+import org.opencv.core.Core
+import org.opencv.android.Utils
+import org.opencv.android.OpenCVLoader
 
 class MobileScanner(
     private val activity: Activity,
@@ -96,9 +96,12 @@ class MobileScanner(
 
         recognizeImage(inputImage, imageProxy, mediaImage)
 
+
         // Invert
         if (invertImage) {
-            recognizeImage(invertInputImage(inputImage), imageProxy, mediaImage)
+            try {
+                recognizeImage(invertInputImage(inputImage), imageProxy, mediaImage)
+            } catch (_: Exception) {}
         }
     }
 
@@ -525,9 +528,9 @@ class MobileScanner(
     /**
      * Invert the input image.
      */
-    fun invertInputImage(image: InputImage): InputImage {
+    private fun invertInputImage(image: InputImage): InputImage {
         val bitmap = ImageConvertUtils.getInstance().getUpRightBitmap(image);
-        val tmp = Mat(bitmap.getWidth(), bitmap.getHeight(), CvType.CV_8UC1);
+        val tmp = Mat(bitmap.width, bitmap.height, CvType.CV_8UC1);
         Utils.bitmapToMat(bitmap, tmp);
         Core.bitwise_not(tmp, tmp);
         Utils.matToBitmap(tmp, bitmap);

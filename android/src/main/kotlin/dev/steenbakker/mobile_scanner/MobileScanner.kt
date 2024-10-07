@@ -3,7 +3,11 @@ package dev.steenbakker.mobile_scanner
 import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.media.Image
@@ -37,11 +41,6 @@ import dev.steenbakker.mobile_scanner.objects.DetectionSpeed
 import dev.steenbakker.mobile_scanner.objects.MobileScannerStartParameters
 import dev.steenbakker.mobile_scanner.utils.YuvToRgbConverter
 import io.flutter.view.TextureRegistry
-import org.opencv.android.OpenCVLoader
-import org.opencv.android.Utils
-import org.opencv.core.Core
-import org.opencv.core.CvType
-import org.opencv.core.Mat
 import java.io.ByteArrayOutputStream
 import kotlin.math.roundToInt
 
@@ -98,7 +97,15 @@ class MobileScanner(
         // Invert
         if (invertImage) {
             try {
-                recognizeImage(invertInputImage(inputImage), imageProxy, mediaImage)
+                // Получаем Bitmap из InputImage
+                val bitmap = ImageConvertUtils.getInstance().getUpRightBitmap(inputImage) // Если нужно, преобразуем в правильную ориентацию
+
+                // Инвертируем Bitmap с помощью ColorMatrix
+                val invertedBitmap = invertBitmap(bitmap)
+
+                // Создаем новый InputImage из инвертированного Bitmap
+                val invertedImage = InputImage.fromBitmap(invertedBitmap, 0)
+                recognizeImage(invertedImage, imageProxy, mediaImage)
             } catch (_: Exception) {}
         }
     }
@@ -266,9 +273,6 @@ class MobileScanner(
         cameraResolution: Size?,
         newCameraResolutionSelector: Boolean
     ) {
-
-        OpenCVLoader.initDebug()
-
         this.detectionSpeed = detectionSpeed
         this.detectionTimeout = detectionTimeout
         this.returnImage = returnImage
@@ -526,14 +530,28 @@ class MobileScanner(
     /**
      * Invert the input image.
      */
-    private fun invertInputImage(image: InputImage): InputImage {
-        val bitmap = ImageConvertUtils.getInstance().getUpRightBitmap(image)
-        val tmp = Mat(bitmap.width, bitmap.height, CvType.CV_8UC1)
-        Utils.bitmapToMat(bitmap, tmp)
-        Core.bitwise_not(tmp, tmp)
-        Utils.matToBitmap(tmp, bitmap)
-        val newImage = InputImage.fromBitmap(bitmap, 0)
-        return newImage
+    fun invertBitmap(bitmap: Bitmap): Bitmap {
+        // Создаем новый Bitmap того же размера и конфигурации
+        val invertedBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, bitmap.config)
+
+        // Создаем ColorMatrix для инвертирования цветов
+        val colorMatrix = ColorMatrix()
+        colorMatrix.set(floatArrayOf(
+            -1.0f, 0.0f, 0.0f, 0.0f, 255.0f, // Инвертирование красного
+            0.0f, -1.0f, 0.0f, 0.0f, 255.0f, // Инвертирование зеленого
+            0.0f, 0.0f, -1.0f, 0.0f, 255.0f, // Инвертирование синего
+            0.0f, 0.0f, 0.0f, 1.0f, 0.0f    // Оставляем альфа-канал без изменений
+        ))
+
+        // Применяем ColorMatrix через Paint
+        val paint = Paint()
+        paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+
+        // Рисуем инвертированное изображение на новый Bitmap
+        val canvas = Canvas(invertedBitmap)
+        canvas.drawBitmap(bitmap, 0f, 0f, paint)
+
+        return invertedBitmap
     }
 
     /**
